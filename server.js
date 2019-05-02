@@ -1,35 +1,88 @@
 'use strict';
 
+// PROVIDE ACCESS TO ENVIRONMENTAL VARIABLES IN .env
 require('dotenv').config();
 
+// LOAD APP DEPENDENDIES
 const express = require('express');
-const app = express();
 const superagent = require('superagent');
 const cors = require('cors');
 const pg = require('pg');
 
+// APP SETUP
+const app = express();
 app.use(cors());
-
 const PORT = process.env.PORT;
 
 //Connecting to the database
 const client = new pg.Client(process.env.DATABASE_URL);
 client.connect();
 client.on('error', err => console.log(err));
+
 //API routes
 
 app.get('/location', searchToLatLong);
-
 app.get('/weather', getWeather);
-
 app.get('/events', getEvents);
 
+// TURN THE SERVER ON
 app.listen(PORT, () => console.log(`Listening on PORT ${PORT}`));
 
+// ERROR HANDLER
+function handleError(err, response) {
+  console.error(err);
+  if (response) response.status(500).send('Sorry, something is not right');
+}
 
-//Helper functions
+// HELPER FUNCTIONS
 
 //Function to get location data
+
+function getDataFromDB (sqlInfo) {
+  // Create a SQL Statement
+  let condition = '';
+  let values = [];
+
+  if (sqlInfo.searchQuery) {
+    condition = 'search_query';
+    values = [sqlInfo.searchQuery];
+  } else {
+    condition = 'location_id';
+    values = [sqlInfo.id];
+  }
+
+let sql = `SELECT * FROM ${sqlInfo.endpoint}s WHERE ${condition}=$1;`;
+
+// Get the Data and Return
+try { return client.query(sql, values); }
+catch (error) { handleError(error); }
+} 
+
+function saveDataToDB(sqlInfo) {
+  // Create the parameter placeholders
+  let params = [];
+
+  for (let i = 1; i <= sqlInfo.values.length; i++) {
+    params.push(`$${i}`);
+  }
+
+  let sqlParams = params.join();
+
+  let sql = '';
+  if (sqqlInfo.searchQuery) {
+    // location
+    sql = `INSERT INTO ${sqlInfo.endpoint}s (${sqlInfo.columns})
+    VALUES (${sqlParams}) RETURNING ID;`;
+  } else {
+    //all other endpoints
+    sql = `INSERT INTO ${sqlInfo.endpoints}s (${sqlInfo.columns}) VALUES (${sqlParams});`;
+  }
+
+  // save the data
+  try { return client.query(sql, sqlInfo.values); }
+  catch (err) {handleError(err); }
+}
+
 function searchToLatLong(request, response) {
   let query = request.query.data;
 
