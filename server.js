@@ -131,7 +131,7 @@ function getEvents(request, response) {
 
   client.query(sql, values)
     .then(result => {
-      if(result.rowCount > 0) {
+      if (result.rowCount > 0) {
         response.send(result.rows);
       } else {
         const url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${request.query.data.formatted_query}`;
@@ -172,4 +172,37 @@ function Event(event) {
 function handleError(err, response) {
   console.error(err);
   if (response) response.status(500).send('Sorry, something is not right');
+}
+
+//Check to see if the data is still valid
+function checkTimeouts(squInfo, sqlData) {
+
+  const timeouts = {
+    weather: 15 * 1000, //15 seconds
+    yelp: 24 * 1000 * 60 * 60, //24 hours
+    movie: 30 * 1000 * 60 * 60 * 24, //30 days
+    event: 6 * 1000 * 60 * 60, //6 hours
+    trail: 7 * 1000 * 60 * 60 * 24 //7 days
+  };
+
+  //if there is data, find out how old it is
+  if (sqlData.rowCount > 0) {
+    let ageOfResults = (Date.now() - sqlData.rows[0].create_at);
+
+    //for debugging only
+    console.log(sqlInfo.endpoint, ' AGE:', ageOfResults);
+    console.log(sqlInfo.endpoint, ' Timeout:', timeouts[sqlInfo.endpoint]);
+
+    //Compare the age of the results with the timeout value
+    //Delete the data if it is old
+    if (ageOfResults > timeouts[squInfo.endpoint]) {
+      let sql = `DELETE FROM ${squInfo.endpoint}s WHERE location_id=$1;`;
+      let values = [sqlInfo.id];
+      client.query(sql, values)
+        .then(() => { return null; })
+        .catch(error => handleError(error));
+    } else {
+      return sqlData;
+    }
+  }
 }
