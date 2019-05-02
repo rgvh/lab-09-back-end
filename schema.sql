@@ -31,5 +31,6 @@ CREATE TABLE events (
   event_date VARCHAR(255),
   summary VARCHAR(500),
   location_id INTEGER NOT NULL,
+  created_at VARCHAR(255),
   FOREIGN KEY (location_id) REFERENCES locations (id)
 );

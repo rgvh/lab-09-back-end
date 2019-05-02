@@ -75,7 +75,7 @@ function saveDataToDB(sqlInfo) {
     VALUES (${sqlParams}) RETURNING ID;`;
   } else {
     //all other endpoints
-    sql = `INSERT INTO ${sqlInfo.endpoints}s (${sqlInfo.columns}) VALUES (${sqlParams});`;
+    sql = `INSERT INTO ${sqlInfo.endpoint}s (${sqlInfo.columns}) VALUES (${sqlParams});`;
   }
 
   // save the data
@@ -89,7 +89,6 @@ function saveDataToDB(sqlInfo) {
 
 //Check to see if the data is still valid
 function checkTimeouts(sqlInfo, sqlData) {
-
   const timeouts = {
     weather: 15 * 1000, //15 seconds
     yelp: 24 * 1000 * 60 * 60, //24 hours
@@ -100,7 +99,7 @@ function checkTimeouts(sqlInfo, sqlData) {
 
   //if there is data, find out how old it is
   if (sqlData.rowCount > 0) {
-    let ageOfResults = (Date.now() - sqlData.rows[0].create_at);
+    let ageOfResults = (Date.now() - sqlData.rows[0].created_at);
 
     //for debugging only
     console.log(sqlInfo.endpoint, ' AGE:', ageOfResults);
@@ -160,7 +159,7 @@ function getWeather(request, response) {
   };
 
   getDataFromDB(sqlInfo)
-    .then(data => checkTimeouts(sqlInfo.rows))
+    .then(data => checkTimeouts(sqlInfo, data))
     .then(result => {
       if (result) { response.send(result.rows); }
       else {
@@ -190,83 +189,80 @@ function getWeather(request, response) {
 }
 
 
-//function to get weather data
-function getWeather(request, response) {
-  let query = request.query.data.id;
-  let sql = `SELECT * FROM weathers WHERE location_id=$1;`;
-  let values = [query];
-
-  client.query(sql, values)
-    .then(result => {
-      if (result.rowCount > 0) {
-        // console.log('Weather from SQL');
-        response.send(result.rows);
-      } else {
-        const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${request.query.data.latitude},${request.query.data.longitude}`;
-
-        return superagent.get(url)
-          .then(weatherResults => {
-            // console.log('Weather from API');
-            if (!weatherResults.body.daily.data.length) { throw 'NO DATA'; }
-            else {
-              const weatherSummaries = weatherResults.body.daily.data.map(day => {
-                let summary = new Weather(day);
-                summary.id = query;
-
-                let newSql = `INSERT INTO weathers (forecast, time, location_id) VALUES($1, $2, $3);`;
-                let newValues = Object.values(summary);
-                // console.log(newValues);
-                client.query(newSql, newValues);
-
-                return summary;
-
-              });
-              response.send(weatherSummaries);
-            }
-
-          })
-          .catch(error => handleError(error, response));
-      }
-    });
-}
-
-
-
-
 function getEvents(request, response) {
-  let query = request.query.data.id;
-  let sql = `SELECT * FROM events WHERE location_id=$1;`;
-  let values = [query];
+  console.log(request.query.data.id, 'ffffffuuuuuuuu');
+  let sqlInfo = {
+    id: request.query.data.id,
+    endpoint: 'event'
+  };
 
-  client.query(sql, values)
+
+  getDataFromDB(sqlInfo)
+    .then(data => checkTimeouts(sqlInfo, data))
     .then(result => {
-      if (result.rowCount > 0) {
-        response.send(result.rows);
-      } else {
+      if (result) { response.send(result.rows); }
+      else {
         const url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${request.query.data.formatted_query}`;
+        console.log(request.query.data);
 
         return superagent.get(url)
-          .then(result => {
-            if (!result.body.events.length) { throw 'NO DATA'; }
+          .then(eventResults => {
+            if (!eventResults.body.events.length) { throw 'NO DATA'; }
             else {
-              const eventSummaries = result.body.events.map(events => {
-                let event = new Event(events);
-                event.id = query;
+              console.log(eventResults);
+              const eventSummaries = eventResults.body.events.map(event => {
+                let summary = new Event(event);
+                summary.location_id = sqlInfo.id;
 
-                let newSQL = `INSERT INTO events (link, name, event_date, summary, location_id) VALUES ($1, $2, $3, $4, $5);`;
-                let newValues = Object.values(event);
+                sqlInfo.columns = Object.keys(summary).join();
+                sqlInfo.values = Object.values(summary);
 
-                client.query(newSQL, newValues);
-
-                return event;
+                saveDataToDB(sqlInfo);
+                return summary;
               });
-              response.send(eventSummaries.slice(0, 20));
+              response.send(eventSummaries);
             }
           })
           .catch(error => handleError(error, response));
       }
     });
 }
+
+
+// function getEvents(request, response) {
+//   let query = request.query.data.id;
+//   let sql = `SELECT * FROM events WHERE location_id=$1;`;
+//   let values = [query];
+
+//   client.query(sql, values)
+//     .then(result => {
+//       if (result.rowCount > 0) {
+//         response.send(result.rows);
+//       } else {
+//         const url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${request.query.data.formatted_query}`;
+
+//         return superagent.get(url)
+//           .then(result => {
+//             if (!result.body.events.length) { throw 'NO DATA'; }
+//             else {
+//               const eventSummaries = result.body.events.map(events => {
+//                 let event = new Event(events);
+//                 event.id = query;
+
+//                 let newSQL = `INSERT INTO events (link, name, event_date, summary, location_id) VALUES ($1, $2, $3, $4, $5);`;
+//                 let newValues = Object.values(event);
+
+//                 client.query(newSQL, newValues);
+
+//                 return event;
+//               });
+//               response.send(eventSummaries.slice(0, 20));
+//             }
+//           })
+//           .catch(error => handleError(error, response));
+//       }
+//     });
+// }
 
 
 function Location(query, location) {
@@ -286,6 +282,7 @@ function Weather(day) {
 function Event(event) {
   this.link = event.url;
   this.name = event.name.text;
-  this.event_date = new Date(event.start.local).toDateString().slice(0, 15);
+  this.event_date = new Date(event.start.local).toDateString();
   this.summary = event.summary;
+  this.created_at = Date.now();
 }
