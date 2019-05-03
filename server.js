@@ -24,6 +24,7 @@ client.on('error', err => console.log(err));
 app.get('/location', searchToLatLong);
 app.get('/weather', getWeather);
 app.get('/events', getEvents);
+app.get('/movie', getMovies);
 
 // TURN THE SERVER ON
 app.listen(PORT, () => console.log(`Listening on PORT ${PORT}`));
@@ -190,7 +191,7 @@ function getWeather(request, response) {
 
 
 function getEvents(request, response) {
-  console.log(request.query.data.id, 'ffffffuuuuuuuu');
+  // console.log(request.query.data.id, 'ffffffuuuuuuuu');
   let sqlInfo = {
     id: request.query.data.id,
     endpoint: 'event'
@@ -203,13 +204,13 @@ function getEvents(request, response) {
       if (result) { response.send(result.rows); }
       else {
         const url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${request.query.data.formatted_query}`;
-        console.log(request.query.data);
+        // console.log(request.query.data);
 
         return superagent.get(url)
           .then(eventResults => {
             if (!eventResults.body.events.length) { throw 'NO DATA'; }
             else {
-              console.log(eventResults);
+              // console.log(eventResults);
               const eventSummaries = eventResults.body.events.map(event => {
                 let summary = new Event(event);
                 summary.location_id = sqlInfo.id;
@@ -221,6 +222,44 @@ function getEvents(request, response) {
                 return summary;
               });
               response.send(eventSummaries);
+            }
+          })
+          .catch(error => handleError(error, response));
+      }
+    });
+}
+
+function getMovies(request, response) {
+
+  let sqlInfo = {
+    id: request.query.data.id,
+    endpoint: 'movie'
+  };
+
+  getDataFromDB(sqlInfo)
+    .then(data => checkTimeouts(sqlInfo, data))
+    .then(results => {
+      if (results) { response.send(results.rows); }
+      else {
+        const url = `https://api.themoviedb.org/3/movie/${process.env.MOVIE_API_KEY}&query=${request.query.data.search_query}`;
+        console.log(request.query.data.search_query);
+
+        return superagent.get(url)
+          .then(movieResults => {
+            console.log('Movie from API');
+            if (!movieResults.body.results.length) { throw 'NO DATA'; }
+            else {
+              const movieResults = movieResults.body.results.data.map(movie => {
+                let summary = new Movie(movie);
+                summary.location_id = sqlInfo.id;
+
+                sqlInfo.columns = Object.keys(summary).join();
+                sqlInfo.values = Object.values(summary);
+
+                saveDataToDB(sqlInfo);
+                return summary;
+              });
+              response.send(movieResults);
             }
           })
           .catch(error => handleError(error, response));
@@ -284,5 +323,17 @@ function Event(event) {
   this.name = event.name.text;
   this.event_date = new Date(event.start.local).toDateString();
   this.summary = event.summary;
+  this.created_at = Date.now();
+}
+
+//moviedb constructor
+function Movie(movie){
+  this.title = movie.original_title;
+  this.overview = movie.overview;
+  this.average_votes = movie.vote_average;
+  this.total_votes = movie.vote_count;
+  this.image_url = movie.poster_path;
+  this.popularity = movie.popularity;
+  this.released_on = movie.released_date
   this.created_at = Date.now();
 }
