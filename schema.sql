@@ -34,3 +34,17 @@ CREATE TABLE events (
   created_at VARCHAR(255),
   FOREIGN KEY (location_id) REFERENCES locations (id)
 );
+
+CREATE TABLE movies (
+  id SERIAL PRIMARY KEY,
+  title VARCHAR(255),
+  overview VARCHAR(255),
+  average_votes NUMERIC(3,1),
+  total_votes INTEGER,
+  image_url VARCHAR(255),
+  popularity NUMERIC(6,3),
+  released_on VARCHAR(255),
+  location_id INTEGER NOT NULL,
+  created_at VARCHAR(255),
+  FOREIGN KEY (location_id) REFERENCES locations (id)
+);
