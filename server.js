@@ -24,7 +24,7 @@ client.on('error', err => console.log(err));
 app.get('/location', searchToLatLong);
 app.get('/weather', getWeather);
 app.get('/events', getEvents);
-app.get('/movie', getMovies);
+app.get('/movies', getMovies);
 
 // TURN THE SERVER ON
 app.listen(PORT, () => console.log(`Listening on PORT ${PORT}`));
@@ -168,7 +168,7 @@ function getWeather(request, response) {
 
         return superagent.get(url)
           .then(weatherResults => {
-            console.log('Weather from API');
+            // console.log('Weather from API');
             if (!weatherResults.body.daily.data.length) { throw 'NO DATA'; }
             else {
               const weatherSummaries = weatherResults.body.daily.data.map(day => {
@@ -204,7 +204,6 @@ function getEvents(request, response) {
       if (result) { response.send(result.rows); }
       else {
         const url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${request.query.data.formatted_query}`;
-        // console.log(request.query.data);
 
         return superagent.get(url)
           .then(eventResults => {
@@ -230,39 +229,37 @@ function getEvents(request, response) {
 }
 
 function getMovies(request, response) {
-
   let sqlInfo = {
     id: request.query.data.id,
     endpoint: 'movie'
   };
-
+  
   getDataFromDB(sqlInfo)
-    .then(data => checkTimeouts(sqlInfo, data))
-    .then(results => {
-      if (results) { response.send(results.rows); }
+    .then(data => checkTimeouts(sqlInfo,data))
+    .then(result => {
+      console.log('Hi there')
+      if (result) {response.send(result.rows);}
       else {
-        const url = `https://api.themoviedb.org/3/movie/${process.env.MOVIE_API_KEY}&query=${request.query.data.search_query}`;
-        console.log(request.query.data.search_query);
-
+        const url = `https://api.themoviedb.org/3/search/movie?api_key=${process.env.MOVIE_API_KEY}&query=${request.query.data.formatted_query.split(',')[0]}`;
+        console.log(request.query.data.formatted_query);
         return superagent.get(url)
           .then(movieResults => {
-            console.log('Movie from API');
             if (!movieResults.body.results.length) { throw 'NO DATA'; }
             else {
-              const movieResults = movieResults.body.results.data.map(movie => {
+              const movieSummaries = movieResults.body.results.map( movie => {
                 let summary = new Movie(movie);
-                summary.location_id = sqlInfo.id;
 
+                summary.location_id = sqlInfo.id;
                 sqlInfo.columns = Object.keys(summary).join();
                 sqlInfo.values = Object.values(summary);
 
                 saveDataToDB(sqlInfo);
                 return summary;
               });
-              response.send(movieResults);
+              response.send(movieSummaries);
             }
           })
-          .catch(error => handleError(error, response));
+          .catch(err => handleError(err, response));
       }
     });
 }
