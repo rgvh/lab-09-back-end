@@ -25,6 +25,7 @@ app.get('/location', searchToLatLong);
 app.get('/weather', getWeather);
 app.get('/events', getEvents);
 app.get('/movies', getMovies);
+app.get('/yelps', getYelps);
 
 // TURN THE SERVER ON
 app.listen(PORT, () => console.log(`Listening on PORT ${PORT}`));
@@ -264,6 +265,43 @@ function getMovies(request, response) {
     });
 }
 
+function getYelps(request, response) {
+
+  let sqlInfo = {
+    id: request.query.data.id,
+    endpoint: 'yelp'
+  };
+
+  getDataFromDB(sqlInfo)
+    .then(data => checkTimeouts(sqlInfo, data))
+    .then(result => {
+      if (result) { response.send(result.rows); }
+      else {
+      // .set('Authorization', `Bearer ${process.env.YELP_API_KEY}`)
+        const url = `https://api.yelp.com/v3/businesses/search?latitude=${request.query.data.latitude}&longitude=${request.query.data.longitude}`;
+
+        return superagent.get(url)
+          .then(yelpResults => {
+            console.log('Yelp from API');
+            if(!yelpResults.body.results.length) { throw 'NO DATA';}
+            else {
+              const yelpSummaries = yelpResults.body.results.map(yelp => {
+                let summary = new Yelp(yelp);
+                summary.location_id = sqlInfo.id;
+
+                sqlInfo.columns = Object.keys(summary).join();
+                sqlInfo.values = Object.values(summary);
+
+                saveDataToDB(sqlInfo);
+                return summary;
+              });
+              response.send(yelpSummaries);
+            }
+          })
+          .catch(err => handleError(error, response));
+      }
+    });
+}
 
 // function getEvents(request, response) {
 //   let query = request.query.data.id;
@@ -332,5 +370,15 @@ function Movie(movie){
   this.image_url = `https://image.tmdb.org/t/p/w185/${movie.poster_path}`;
   this.popularity = movie.popularity;
   this.released_on = new Date(movie.release_date).toDateString();
+  this.created_at = Date.now();
+}
+
+//yelp constructor
+function Yelp(yelp){
+  this.name = yelp.name;
+  this.image_url = yelp.image_url;
+  this.price = yelp.price;
+  this.rating = yelp.rating;
+  this.url = yelp.url;
   this.created_at = Date.now();
 }
