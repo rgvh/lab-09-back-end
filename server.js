@@ -237,11 +237,11 @@ function getMovies(request, response) {
   getDataFromDB(sqlInfo)
     .then(data => checkTimeouts(sqlInfo,data))
     .then(result => {
-      console.log('Hi there')
+      // console.log('Hi there')
       if (result) {response.send(result.rows);}
       else {
         const url = `https://api.themoviedb.org/3/search/movie?api_key=${process.env.MOVIE_API_KEY}&query=${request.query.data.formatted_query.split(',')[0]}`;
-        console.log(request.query.data.formatted_query);
+        // console.log(request.query.data.formatted_query.split(',')[0]);
         return superagent.get(url)
           .then(movieResults => {
             if (!movieResults.body.results.length) { throw 'NO DATA'; }
@@ -329,8 +329,8 @@ function Movie(movie){
   this.overview = movie.overview;
   this.average_votes = movie.vote_average;
   this.total_votes = movie.vote_count;
-  this.image_url = movie.poster_path;
+  this.image_url = `https://image.tmdb.org/t/p/w185/${movie.poster_path}`;
   this.popularity = movie.popularity;
-  this.released_on = movie.released_date
+  this.released_on = new Date(movie.release_date).toDateString();
   this.created_at = Date.now();
 }
