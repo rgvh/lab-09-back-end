@@ -29,7 +29,7 @@ CREATE TABLE events (
   link VARCHAR(255),
   name VARCHAR(255),
   event_date VARCHAR(255),
-  summary VARCHAR(500),
+  summary TEXT,
   location_id INTEGER NOT NULL,
   created_at VARCHAR(255),
   FOREIGN KEY (location_id) REFERENCES locations (id)
@@ -38,7 +38,7 @@ CREATE TABLE events (
 CREATE TABLE movies (
   id SERIAL PRIMARY KEY,
   title VARCHAR(255),
-  overview VARCHAR(255),
+  overview TEXT,
   average_votes VARCHAR(255),
   total_votes VARCHAR(255),
   image_url VARCHAR(255),
