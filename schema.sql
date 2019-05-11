@@ -1,5 +1,3 @@
--- Schema for city_explorer
-
 DROP TABLE IF EXISTS weathers;
 DROP TABLE IF EXISTS events;
 DROP TABLE IF EXISTS yelps;
@@ -56,6 +54,23 @@ CREATE TABLE yelps (
   price VARCHAR(255),
   rating VARCHAR(255),
   url VARCHAR(255),
+  created_at VARCHAR(255),
+  location_id INTEGER NOT NULL,
+  FOREIGN KEY (location_id) REFERENCES locations (id)
+);
+
+CREATE TABLE trails (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255),
+  location VARCHAR(255),
+  length VARCHAR(255),
+  stars VARCHAR(255),
+  star_votes VARCHAR(255),
+  summary VARCHAR(255),
+  trail_url VARCHAR(255),
+  conditions VARCHAR(255),
+  condition_date VARCHAR(255),
+  condition_time VARCHAR(255),
   created_at VARCHAR(255),
   location_id INTEGER NOT NULL,
   FOREIGN KEY (location_id) REFERENCES locations (id)

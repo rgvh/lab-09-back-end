@@ -25,7 +25,8 @@ app.get('/location', searchToLatLong);
 app.get('/weather', getWeather);
 app.get('/events', getEvents);
 app.get('/movies', getMovies);
-app.get('/yelps', getYelps);
+app.get('/yelp', getYelps);
+app.get('/trails', getTrails);
 
 // TURN THE SERVER ON
 app.listen(PORT, () => console.log(`Listening on PORT ${PORT}`));
@@ -87,8 +88,6 @@ function saveDataToDB(sqlInfo) {
 
 //Cache Invalidation:
 
-//bunch of steps
-
 //Check to see if the data is still valid
 function checkTimeouts(sqlInfo, sqlData) {
   const timeouts = {
@@ -102,10 +101,6 @@ function checkTimeouts(sqlInfo, sqlData) {
   //if there is data, find out how old it is
   if (sqlData.rowCount > 0) {
     let ageOfResults = (Date.now() - sqlData.rows[0].created_at);
-
-    //for debugging only
-    console.log(sqlInfo.endpoint, ' AGE:', ageOfResults);
-    console.log(sqlInfo.endpoint, ' Timeout:', timeouts[sqlInfo.endpoint]);
 
     //Compare the age of the results with the timeout value
     //Delete the data if it is old
@@ -190,7 +185,6 @@ function getWeather(request, response) {
     });
 }
 
-
 function getEvents(request, response) {
   // console.log(request.query.data.id, 'ffffffuuuuuuuu');
   let sqlInfo = {
@@ -234,12 +228,12 @@ function getMovies(request, response) {
     id: request.query.data.id,
     endpoint: 'movie'
   };
-  
+
   getDataFromDB(sqlInfo)
-    .then(data => checkTimeouts(sqlInfo,data))
+    .then(data => checkTimeouts(sqlInfo, data))
     .then(result => {
       // console.log('Hi there')
-      if (result) {response.send(result.rows);}
+      if (result) { response.send(result.rows); }
       else {
         const url = `https://api.themoviedb.org/3/search/movie?api_key=${process.env.MOVIE_API_KEY}&query=${request.query.data.formatted_query.split(',')[0]}`;
         // console.log(request.query.data.formatted_query.split(',')[0]);
@@ -247,7 +241,7 @@ function getMovies(request, response) {
           .then(movieResults => {
             if (!movieResults.body.results.length) { throw 'NO DATA'; }
             else {
-              const movieSummaries = movieResults.body.results.map( movie => {
+              const movieSummaries = movieResults.body.results.map(movie => {
                 let summary = new Movie(movie);
 
                 summary.location_id = sqlInfo.id;
@@ -277,28 +271,62 @@ function getYelps(request, response) {
     .then(result => {
       if (result) { response.send(result.rows); }
       else {
-      // .set('Authorization', `Bearer ${process.env.YELP_API_KEY}`)
         const url = `https://api.yelp.com/v3/businesses/search?latitude=${request.query.data.latitude}&longitude=${request.query.data.longitude}`;
+        
+        console.log(url);
+        superagent.get(url)
+          .set( 'Authorization', `Bearer ${process.env.YELP_API_KEY}`)
+          .then(yelpResults => {
+
+            if (!yelpResults.body.businesses.length) { throw 'NO DATA'; }
+            else {
+              const yelpSummaries = yelpResults.body.businesses.map(query => {
+                let newYelp = new Yelp(query);
+                newYelp.location_id = sqlInfo.id;
+
+                sqlInfo.columns = Object.keys(newYelp).join();
+                sqlInfo.values = Object.values(newYelp);
+
+                saveDataToDB(sqlInfo);
+                return newYelp;
+              });
+              response.send(yelpSummaries);
+            }
+          })
+          .catch(err => handleError(err, response));
+      }
+    });
+}
+
+function getTrails (request, response){
+  let sqlInfo = {
+    id: request.query.data.id,
+    endpoint: 'trail'
+  };
+  getDataFromDB(sqlInfo)
+    .then(data => checkTimeouts(sqlInfo,data))
+    .then(result => {
+      if(result){response.send(result.rows);}
+      else {
+        const url = `https://www.hikingproject.com/data/get-trails?lat=${request.query.data.latitude}&lon=${request.query.data.longitude}&key=${process.env.TRAIL_API_KEY}`;
 
         return superagent.get(url)
-          .then(yelpResults => {
-            console.log('Yelp from API');
-            if(!yelpResults.body.results.length) { throw 'NO DATA';}
+          .then(trailResults => {
+            if(!trailResults.body.trails.length){throw 'NO DATA';}
             else {
-              const yelpSummaries = yelpResults.body.results.map(yelp => {
-                let summary = new Yelp(yelp);
+              const trailSummaries = trailResults.body.trails.map(trail => {
+                let summary = new Trail(trail);
                 summary.location_id = sqlInfo.id;
-
                 sqlInfo.columns = Object.keys(summary).join();
                 sqlInfo.values = Object.values(summary);
 
                 saveDataToDB(sqlInfo);
                 return summary;
               });
-              response.send(yelpSummaries);
+              response.send(trailSummaries);
             }
           })
-          .catch(err => handleError(error, response));
+          .catch(err => handleError(err, response));
       }
     });
 }
@@ -326,7 +354,7 @@ function Event(event) {
 }
 
 //moviedb constructor
-function Movie(movie){
+function Movie(movie) {
   this.title = movie.original_title;
   this.overview = movie.overview;
   this.average_votes = movie.vote_average;
@@ -338,11 +366,26 @@ function Movie(movie){
 }
 
 //yelp constructor
-function Yelp(yelp){
-  this.name = yelp.name;
-  this.image_url = yelp.image_url;
-  this.price = yelp.price;
-  this.rating = yelp.rating;
-  this.url = yelp.url;
+function Yelp(query) {
+  this.name = query.name;
+  this.image_url = query.image_url;
+  this.price = query.price;
+  this.rating = query.rating;
+  this.url = query.url;
+  this.created_at = Date.now();
+}
+
+//trails constructor
+function Trail (trail){
+  this.name = trail.name;
+  this.location = trail.location;
+  this.length = trail.length;
+  this.stars = trail.stars;
+  this.star_votes = trail.starVotes;
+  this.summary = trail.summary;
+  this.trail_url = trail.url;
+  this.conditions = trail.conditionDetails;
+  this.condition_date = trail.conditionDate.split(' ')[0];
+  this.condition_time = trail.conditionDate.split(' ')[1];
   this.created_at = Date.now();
 }
