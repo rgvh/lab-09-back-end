@@ -303,42 +303,6 @@ function getYelps(request, response) {
     });
 }
 
-// function getEvents(request, response) {
-//   let query = request.query.data.id;
-//   let sql = `SELECT * FROM events WHERE location_id=$1;`;
-//   let values = [query];
-
-//   client.query(sql, values)
-//     .then(result => {
-//       if (result.rowCount > 0) {
-//         response.send(result.rows);
-//       } else {
-//         const url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${request.query.data.formatted_query}`;
-
-//         return superagent.get(url)
-//           .then(result => {
-//             if (!result.body.events.length) { throw 'NO DATA'; }
-//             else {
-//               const eventSummaries = result.body.events.map(events => {
-//                 let event = new Event(events);
-//                 event.id = query;
-
-//                 let newSQL = `INSERT INTO events (link, name, event_date, summary, location_id) VALUES ($1, $2, $3, $4, $5);`;
-//                 let newValues = Object.values(event);
-
-//                 client.query(newSQL, newValues);
-
-//                 return event;
-//               });
-//               response.send(eventSummaries.slice(0, 20));
-//             }
-//           })
-//           .catch(error => handleError(error, response));
-//       }
-//     });
-// }
-
-
 function Location(query, location) {
   this.search_query = query;
   this.formatted_query = location.formatted_address;
