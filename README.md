@@ -99,9 +99,5 @@ Actual time needed to complete: ?
 
 Contributor:  Jonny Graybill
 
-
-
-
-
-
 Credits and Collaborations
+
